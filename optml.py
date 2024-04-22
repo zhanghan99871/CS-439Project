@@ -12,19 +12,28 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
+import math
+
+'''matrix = np.random.rand(1000,1000)
+shape = matrix.shape
+gaussian_matrix = np.random.normal(loc=0.0, scale=2.0, size=shape)
+print(gaussian_matrix.sum())
+print(np.var(gaussian_matrix))'''
 
 #%% 
 ###############################################
 ################ CONFIGURATION ################
 ###############################################
 
-dataset_portions = [0.001, 0.008, 0.09, 0.4, 1]  # Portions of complete dataset for the accuracy vs dataset size
+dataset_portions = [0.001, 0.002, 0.003]  # Portions of complete dataset for the accuracy vs dataset size
 J, L, order = 4, 8, 2                          # Optimal values = log2(img_shape[1])-3,6-8; mopt=2
 num_epochs_cuda, num_epochs_no_cuda = 200, 50  # How many epochs to run
 batch_size = 32                                # For reading in data
 model = ["scatterCNN", "normalCNN"][1]         # Artificial neural network
 learning_rate = 1e-2          
-regu = 1e-5                 
+regu = 1e-5       
+noise_aver = 0
+noise_std = 1         
 
 
 ###############################################
@@ -191,9 +200,15 @@ for subset_size in dataset_sizes:
         total = 0
         with torch.no_grad():
             for images, labels in val_loader:
+                #noise = torch.randn_like(images) * math.sqrt(1 / 10)
+                shape = images.shape
+                noise = np.random.normal(loc = noise_aver, scale = noise_std, size=shape)
+                noisy_images = images + noise
                 images = images.to(device)
                 labels = labels.to(device)
-                outputs = model(images).to(device)
+                noisy_images = noisy_images.to(device).float()
+                #outputs = model(images).to(device)
+                outputs = model(noisy_images).to(device).float()
                 loss = criterion(outputs, labels)
                 val_loss += loss.item() * images.size(0)
                 _, predicted = torch.max(outputs.data, 1)
