@@ -7,7 +7,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms, datasets
 from kymatio.torch import Scattering2D
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_auc_score
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -18,7 +18,7 @@ from tqdm import tqdm
 ################ CONFIGURATION ################
 ###############################################
 
-dataset_portions = [0.001, 0.002, 0.003]  # Portions of complete dataset for the accuracy vs dataset size
+dataset_portions = [0.001, 0.008, 0.09, 0.4, 1]  # Portions of complete dataset for the accuracy vs dataset size
 J, L, order = 4, 8, 2                          # Optimal values = log2(img_shape[1])-3,6-8; mopt=2
 num_epochs_cuda, num_epochs_no_cuda = 200, 50  # How many epochs to run
 batch_size = 32                                # For reading in data
@@ -30,8 +30,9 @@ regu = 1e-5
 ###############################################
 ################# LOAD DATA ###################
 ###############################################
-if torch.cuda.is_available(): device = "cuda"; num_epochs = 200; print(f"CUDA is available. Setting epochs to {num_epochs}.")
-else: device = "cpu"; num_epochs = 50; print(f"CUDA is not available. Setting epochs to {num_epochs}.")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#if torch.cuda.is_available(): device = "cuda"; num_epochs = 200; print(f"CUDA is available. Setting epochs to {num_epochs}.")
+#else: device = "cpu"; num_epochs = 50; print(f"CUDA is not available. Setting epochs to {num_epochs}.")
 
 print("Loading MNIST data...")
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
@@ -169,10 +170,10 @@ for subset_size in dataset_sizes:
         for images, labels in train_loader:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            outputs = model(images)
+            outputs = model(images).to(device)
             #print(model.classifier.parameters())
             abs_weight_matrix = torch.abs(list(model.classifier.parameters())[2].data.detach()).to(device)
-            l1_loss = regu * torch.sum(abs_weight_matrix)
+            l1_loss = regu * torch.sum(abs_weight_matrix).to(device)
             #out = list(model.classifier.parameters())[3].data
             #print(l1_loss)
             #print(out)
@@ -191,7 +192,8 @@ for subset_size in dataset_sizes:
         with torch.no_grad():
             for images, labels in val_loader:
                 images = images.to(device)
-                outputs = model(images)
+                labels = labels.to(device)
+                outputs = model(images).to(device)
                 loss = criterion(outputs, labels)
                 val_loss += loss.item() * images.size(0)
                 _, predicted = torch.max(outputs.data, 1)
@@ -225,6 +227,7 @@ accuracy = accuracy_score(test_labels, pred_labels)
 precision = precision_score(test_labels, pred_labels, average='macro')
 recall = recall_score(test_labels, pred_labels, average='macro')
 f1 = f1_score(test_labels, pred_labels, average='macro')
+
 #auc = roc_auc_score(test_labels, probabilities, multi_class="ovr")
 print(f"Test Accuracy: {accuracy}")
 print(f"Precision: {precision}")
