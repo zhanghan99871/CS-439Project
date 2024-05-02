@@ -27,13 +27,13 @@ print(np.var(gaussian_matrix))'''
 dataset_portions = [0.0001, 0.0002, 0.0003]  # Portions of complete dataset for the accuracy vs dataset size
 #dataset_portions = [1e-4, 1e-3, 1e-2, 1e-1, 1]  # Portions of complete dataset for the accuracy vs dataset size
 num_experiments = 3
-num_epochs_cuda, num_epochs_no_cuda = 200, 5  # How many epochs to run
+num_epochs_cuda, num_epochs_no_cuda = 200, 10  # How many epochs to run
 batch_size = 32  # For reading in data
 
 J, L, order = 4, 8, 2  # Optimal values = log2(img_shape[1])-3,6-8; mopt=2
 CNNmodel = ["scatterCNN", "normalCNN"][1]  #Pick [0], [1], or nothing (meaning both)
-optimiser = ['Adam', 'RMSprop', 'SGD'][:1] #Use : to keep list type
-learning_rate = [1e-1, 1e-2, 1e-3][:1] #e.g. [1:2] for second element
+optimizer_list = ['Adam', 'RMSprop', 'SGD'][:1] #Use : to keep list type
+learning_rate = [1e-1, 1e-2, 1e-3][:2] #e.g. [1:2] for second element
 regu = [0, 5e-3, 5e-2, 5e-1][:1] #or [-1:] for last element
 
 noise_avg, noise_std = 0, 1
@@ -48,13 +48,23 @@ def error(data):
     standard_error = np.std(data, ddof=1) / np.sqrt(len(data))
     return mean, standard_error
 
-def process_data(data):
-    data_len = len(data[0])
-    data_mean = np.zeros(data_len)
-    data_error = np.zeros(data_len)
-    for i in range(data_len):
-        data_mean[i], data_error[i] = error(data[:, i])
-    return data_mean, data_error
+def process_data(data, type="Loss"):
+    if type == "Loss": 
+        data_mean = np.mean(data, axis=-2) #Average over num_experiments
+        data_std = np.std(data, axis=-2, ddof=1) / np.sqrt(data.shape[-2])
+        return data_mean, data_std
+    elif type == "Accuracy":
+        data_mean_vec = np.mean(data, axis=-2)
+        data_mean = np.max(data_mean_vec) #Average over num_experiments
+        maxind = np.where(data_mean == data_mean_vec)[0]
+        if maxind.size > 1:
+            maxind = maxind[0]
+        data_std_vec = np.std(data, axis=-2, ddof=1) / np.sqrt(data.shape[-2])
+        data_std = data_std_vec[maxind]
+        return data_mean, data_std
+
+
+
 
 ###############################################
 ################# LOAD DATA ###################
@@ -105,7 +115,7 @@ for subset_size in dataset_sizes:
 print("\n")
 print("Dataset sizes: ", dataset_sizes)
 print("Model(s): ", CNNmodel)
-print("Optimiser(s): ", optimiser)
+print("Optimiser(s): ", optimizer_list)
 print("Learning rate(s): ", learning_rate)
 print("Regularisation parameter(s): ", regu)
 print("Number of experiments: ", num_experiments)
@@ -209,7 +219,7 @@ else:
 
 
 ###############################################
-############  HELPER FUNCTIONS ################
+############ HELPER FUNCTIONS #################
 ###############################################
 
 def reset_weights(m):
@@ -233,11 +243,11 @@ def choose_optimizer(optimizer_name, model, learning_rate):
     else:
         print("Optimizer not found. Please select one of 'Adam', 'RMSprop', 'SGD'.")
     
-def initialize_history(history, model_name, dataset_sizes, optimiser, learning_rate, regu, num_experiments):
+def initialize_history(history, model_name, dataset_sizes, optimizer, learning_rate, regu, num_experiments):
     if model_name not in history:
         history[model_name] = {}
     for subset_size in dataset_sizes:
-        for opt in optimiser:
+        for opt in optimizer:
             for lr in learning_rate:
                 for r in regu:
                     config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, r)
@@ -248,11 +258,11 @@ def initialize_history(history, model_name, dataset_sizes, optimiser, learning_r
                     if val_loss_key not in history[model_name]:
                         history[model_name][val_loss_key] = [[] for _ in range(num_experiments)]
 
-def initialize_accuracies(accuracies, model_name, dataset_sizes, optimiser, learning_rate, regu, num_experiments):
+def initialize_accuracies(accuracies, model_name, dataset_sizes, optimizer, learning_rate, regu, num_experiments):
     if model_name not in accuracies:
         accuracies[model_name] = {}
     for subset_size in dataset_sizes:
-        for opt in optimiser:
+        for opt in optimizer:
             for lr in learning_rate:
                 for r in regu:
                     config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, r)
@@ -272,78 +282,77 @@ criterion = nn.CrossEntropyLoss()
 history = {model_name: {} for model_name in models.keys()}
 accuracies = {model_name: {} for model_name in models.keys()}
 
-i=0
-
 # Loop over each model for training
 for model_name, model_details in models.items():
     print(f"Training {model_name} model...")
     model = model_details["model"].to(device)
-    initialize_history(history, model_name, dataset_sizes, optimiser, learning_rate, regu, num_experiments)
-    initialize_accuracies(accuracies, model_name, dataset_sizes, optimiser, learning_rate, regu, num_experiments)
+    initialize_history(history, model_name, dataset_sizes, optimizer_list, learning_rate, regu, num_experiments)
+    initialize_accuracies(accuracies, model_name, dataset_sizes, optimizer_list, learning_rate, regu, num_experiments)
     
     for lr in learning_rate:
-        for opt in optimiser:
+        for opt in optimizer_list:
             optimizer = choose_optimizer(opt, model, lr)
                 
             for reg in regu:
                 print("Training with optimizer: ", opt, " and learning rate: ", lr, " and regularisation: ", reg)
+                
+                for experiment in range(num_experiments):
+                    model.apply(reset_weights)
 
-                for subset_size in dataset_sizes:
-                    config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, reg)
-                    acc_key = "{}_accuracy".format(config_key)
-                    loss_key = "{}_loss".format(config_key)
-                    val_loss_key = "{}_val_loss".format(config_key)
+                    for subset_size in dataset_sizes:
+                        config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, reg)
+                        acc_key = "{}_accuracy".format(config_key)
+                        loss_key = "{}_loss".format(config_key)
+                        val_loss_key = "{}_val_loss".format(config_key)
 
-                    for experiment in range(num_experiments):
-                        model.apply(reset_weights)
-
+                        accuracy = 0
                         for epoch in tqdm(range(num_epochs), desc=f'Training with dataset size {subset_size}'):
                             model.train()
                             total_loss = 0
+                            total_images = 0
                             
                             for images, labels in train_loader[experiment]:
                                 images, labels = images.to(device), labels.to(device)
                                 optimizer.zero_grad()
-                                outputs = model(images).to(device)
-                                # print(model.classifier.parameters())
-                                abs_weight_matrix = torch.abs(list(model.classifier.parameters())[2].data.detach()).to(device)
-                                l1_loss = reg * torch.sum(abs_weight_matrix).to(device)
-                                # out = list(model.classifier.parameters())[3].data
-                                # print(l1_loss)
-                                # print(out)
+                                outputs = model(images)
+                                abs_weight_matrix = torch.abs(list(model.classifier.parameters())[2].data.detach())
+                                l1_loss = reg * torch.sum(abs_weight_matrix)
                                 loss = criterion(outputs, labels) + l1_loss
-                                # loss = criterion(outputs, labels)
                                 loss.backward()
                                 optimizer.step()
                                 total_loss += loss.item() * images.size(0)
+                                total_images += images.size(0)
 
-                            # Correctly update the history for the current model and experiment
-                            history[model_name][loss_key][experiment].append(total_loss / len(train_subset))
+                            average_loss = total_loss / total_images
+                            history[model_name][loss_key][experiment].append(average_loss)
                             
                             model.eval()
-                            val_loss = 0
+                            val_total_loss = 0
+                            val_total_images = 0
                             correct = 0
-                            total = 0
+
+                            
                             with torch.no_grad():
                                 for images, labels in val_loader[experiment]:
-                                    # noise = torch.randn_like(images) * math.sqrt(1 / 10)
-                                    shape = images.shape
-                                    noise = np.random.normal(loc=noise_avg, scale=noise_std, size=shape)
-                                    noisy_images = images + noise
-                                    images = images.to(device)
-                                    labels = labels.to(device)
-                                    noisy_images = noisy_images.to(device).float()
-                                    # outputs = model(images).to(device)
-                                    outputs = model(noisy_images).to(device).float()
+                                    images, labels = images.to(device), labels.to(device)
+                                    outputs = model(images)
                                     loss = criterion(outputs, labels)
-                                    val_loss += loss.item() * images.size(0)
+                                    val_total_loss += loss.item() * images.size(0)
+                                    val_total_images += images.size(0)
                                     _, predicted = torch.max(outputs.data, 1)
-                                    total += labels.size(0)
                                     correct += (predicted == labels).sum().item()
 
-                            history[model_name][val_loss_key][experiment].append(val_loss / len(val_subset))                      
-                            accuracy = correct / total
-                            accuracies[model_name][acc_key][experiment].append(accuracy)
+                            val_average_loss = val_total_loss / val_total_images
+                            history[model_name][val_loss_key][experiment].append(val_average_loss)                      
+                            accuracy = accuracy + correct / val_total_images
+                            accuracies[model_name][acc_key][experiment].append(accuracy/num_epochs)
+                            
+                            #print(f'Epoch {epoch}:')
+                            #print(f'Correct Predictions: {correct}')
+                            #print(f'Total Samples: {total}')
+                            #print(f'Accuracy this epoch: {accuracy}')
+
+
 
 # %%
 
@@ -360,9 +369,8 @@ def display_examples(X, y_true, y_pred, indices, title):
         plt.title(f"{title}\nTrue: {y_true[idx]}\nPred: {y_pred[idx]}")
         plt.axis('off')
     plt.tight_layout()
-    plt.show()
 
-def evaluate_model(model, model_name, test_images_tensor, test_labels):
+def evaluate_model(model, model_name, test_images_tensor, test_labels, opt, lr, reg):
     outputs = model(test_images_tensor)
     _, pred_labels = torch.max(outputs, 1)
     pred_labels = pred_labels.cpu().numpy()
@@ -383,19 +391,19 @@ def evaluate_model(model, model_name, test_images_tensor, test_labels):
 
     # Generate and plot the normalized confusion matrix
     cm = confusion_matrix(test_labels, pred_labels, normalize='true')
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt=".2%", linewidths=.5, square=True, cmap='Blues')
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-    plt.title(f'Normalized Confusion Matrix for {model_name}')
-    plt.show()
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(cm, annot=True, fmt=".2%", linewidths=.5, square=True, cmap='Blues', ax=ax)
+    # Set labels and title using the axes object
+    ax.set_ylabel('True label')
+    ax.set_xlabel('Predicted label')
+    ax.set_title(f'Normalized Confusion Matrix for {model_name}\nwith {opt} optimizer, learning rate = {lr} , and regularisation parameter = {reg}')
 
     # Display examples of True and False Predictions
     successful_indices = [i for i, (true, pred) in enumerate(zip(test_labels, pred_labels)) if true == pred]
     unsuccessful_indices = [i for i, (true, pred) in enumerate(zip(test_labels, pred_labels)) if true != pred]
 
     display_examples(np.array(test_images), test_labels, pred_labels, successful_indices, f"Successful Predictions for {model_name}")
-    display_examples(np.array(test_images), test_labels, pred_labels, unsuccessful_indices, f"Unsuccessful Predictions for {model_name}")
+    display_examples(np.array(test_images), test_labels, pred_labels, unsuccessful_indices, f"Unsuccessful Predictions for {model_name}")   
 
 
 #%%
@@ -409,47 +417,77 @@ test_images_tensor = torch.stack(test_images).to(device)
 # Evaluate each model separately
 for model_name, model_details in models.items():
     model = model_details["model"].to(device)
-    evaluate_model(model, model_name, test_images_tensor, np.array(test_labels))
-  # Plot training & validation loss values for each dataset size
+    for opt in optimizer_list:
+        for lr in learning_rate:
+            for reg in regu:    
+                evaluate_model(model, model_name, test_images_tensor, np.array(test_labels), opt=opt, lr=lr, reg=reg)
+
   
-  
-# When processing or plotting data, use the full configuration key
+# Initialize figure and axes for subplots
+fig, axs = plt.subplots(1, len(dataset_portions), figsize=(5*len(dataset_portions), 5))  # Adjust figsize as needed
+acc_mean_per_subset = np.zeros(len(dataset_sizes)); acc_std_per_subset = np.zeros(len(dataset_sizes))
+# Iterate through each model in the models dictionary
 for model_name, model_details in models.items():
-    plt.figure(figsize=(10, 6))
     epochs = range(1, num_epochs + 1)
 
-    for opt in optimiser:
+    for opt in optimizer_list:
         for lr in learning_rate:
             for reg in regu:
                 for subset_size in dataset_sizes:
                     config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, reg)
                     loss_key = "{}_loss".format(config_key)
                     val_loss_key = "{}_val_loss".format(config_key)
-                    print("Loss key: ", loss_key)
+                    acc_key = "{}_accuracy".format(config_key)
 
-                    if loss_key in history[model_name]:
+                    if loss_key in history[model_name] and acc_key in accuracies[model_name]:
                         loss_data = np.array(history[model_name][loss_key])
                         val_loss_data = np.array(history[model_name][val_loss_key])
+                        acc_data = np.array(accuracies[model_name][acc_key])
 
-                        loss_mean, loss_error = process_data(loss_data)
-                        val_loss_mean, val_loss_error = process_data(val_loss_data)
+                        if loss_data.size and val_loss_data.size and acc_data.size:
+                            loss_mean, loss_error = process_data(loss_data, "Loss")
+                            val_loss_mean, val_loss_error = process_data(val_loss_data, "Loss")
+                            
+                            i = dataset_sizes.index(subset_size)
+                            axs[i].errorbar(epochs, loss_mean, yerr=loss_error, fmt='-', label=f'{model_name} {opt} {lr} {reg} Train Loss')
+                            axs[i].errorbar(epochs, val_loss_mean, yerr=val_loss_error, fmt='--', label=f'{model_name} {opt} {lr} {reg} Val Loss')
+                            axs[i].set_title("Training size " + str(subset_size))
+                            axs[i].set_xlabel('Epoch')
+                            axs[i].set_ylabel('Loss')
+                            axs[i].set_yscale('log')
+                            axs[i].legend()
+                            
+                            acc_mean, acc_error = process_data(acc_data, "Accuracy")
+                            
+                            acc_mean_per_subset[dataset_sizes.index(subset_size)] = acc_mean
+                            acc_std_per_subset[dataset_sizes.index(subset_size)] = acc_error    
+                            
+                            print("acc_mean: ", acc_mean); print("acc_error: ", acc_error)
+                            print("acc_mean_per_subset: ", acc_mean_per_subset); print("acc_std_per_subset: ", acc_std_per_subset)
+plt.tight_layout()
 
-                        # Plot train loss with solid line
-                        plt.errorbar(epochs, loss_mean, yerr=loss_error, fmt='-', label=f'{model_name} {opt} {lr} {reg} Train Loss')
 
-                        # Plot validation loss with dashed line
-                        plt.errorbar(epochs, val_loss_mean, yerr=val_loss_error, fmt='--', label=f'{model_name} {opt} {lr} {reg} Val Loss')
-
-    plt.title(f'Model loss for all configurations')
-    plt.ylabel('Loss')
-    plt.xlabel('Epoch')
-    plt.yscale('log')
-    plt.legend()
-    plt.show()
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111)
+ax.errorbar(dataset_sizes, acc_mean_per_subset, yerr=acc_std_per_subset, fmt='o-', label=f'{model_name} {opt} {lr} {reg} Accuracy')
+ax.set_title('Accuracy over Different Dataset Sizes')
+ax.set_xlabel('Dataset Size')
+ax.set_ylabel('Accuracy')
+ax.legend()
+plt.tight_layout()
 
 
-plt.title('Validation Accuracy vs Dataset Size')
-plt.xlabel('Training dataset Size')
-plt.ylabel('Validation Accuracy')
-plt.legend()
+
+
+"""fig, ax = plt.subplots(figsize=(10, 8))
+for model_name, model_details in models.items():
+    acc_mean, acc_error = process_data(np.array(accuracies[model_name]))
+    ax.errorbar(dataset_sizes, acc_mean, yerr=acc_error, fmt='-', capsize=5, capthick=2, label=f'{model_name} Accuracy')
+
+ax.set_title('Validation Accuracy vs Dataset Size')
+ax.set_xlabel('Training dataset Size')
+ax.set_ylabel('Validation Accuracy')
+ax.legend()"""
+
+#Show all figures at once
 plt.show()
