@@ -19,7 +19,7 @@ torch.cuda.manual_seed(10086)
 np.random.seed(10086)
 
 warnings.filterwarnings("ignore")
-warnings.filterwarnings("ignore", category = FutureWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # %%
 ###############################################
@@ -27,7 +27,7 @@ warnings.filterwarnings("ignore", category = FutureWarning)
 ###############################################
 
 dataset_portions = [0.0001, 0.0005, 0.001]  # Portions of complete dataset for the accuracy vs dataset size
-#dataset_portions = [1e-4, 1e-3, 1e-2, 1e-1, 1]  # Portions of complete dataset for the accuracy vs dataset size
+# dataset_portions = [1e-4, 1e-3, 1e-2, 1e-1, 1]  # Portions of complete dataset for the accuracy vs dataset size
 num_experiments = 1
 num_epochs_cuda, num_epochs_no_cuda = 50, 50  # How many epochs to run
 batch_size = 32  # For reading in data
@@ -75,9 +75,13 @@ def process_data(data, type="Loss"):
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
-    device = "cuda"; num_epochs = num_epochs_cuda; print(f"CUDA is available. Setting epochs to {num_epochs}.")
+    device = "cuda"
+    num_epochs = num_epochs_cuda
+    print(f"CUDA is available. Setting epochs to {num_epochs}.")
 else:
-    device = "cpu"; num_epochs = num_epochs_no_cuda; print(f"CUDA is not available. Setting epochs to {num_epochs}.")
+    device = "cpu"
+    num_epochs = num_epochs_no_cuda
+    print(f"CUDA is not available. Setting epochs to {num_epochs}.")
 
 print("Loading MNIST data...")
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
@@ -129,8 +133,6 @@ file.write("Regularisation parameter(s): {}\n".format(regu))
 file.write("Number of experiments: {}\n".format(num_experiments))
 file.write("Noise average: {} and noise standard deviation: {}\n".format(noise_avg, noise_std))
 file.write("\n")
-
-
 
 
 # %%
@@ -225,9 +227,12 @@ elif CNNmodel == ["scatterCNN", "normalCNN"]:
     }
 else:
     ("Model not found error. Please selected one of 'scatterCNN' and 'normalCNN'")
-    
 
-#summary(model=models, input_size=(1, 28, 28), device=device)
+
+# Apply summary to each model individually
+for model_name, model_details in models.items():
+    print(f"Summary for {model_name}:")
+    summary(model_details["model"], input_size=(1, 28, 28), device=device)
 
 
 ###############################################
