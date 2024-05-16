@@ -17,6 +17,8 @@ import warnings
 torch.manual_seed(10086)
 torch.cuda.manual_seed(10086)
 np.random.seed(10086)
+torch.cuda.manual_seed_all(10086)
+torch.backends.cudnn.deterministic = True
 
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -33,7 +35,7 @@ num_epochs_cuda, num_epochs_no_cuda = 50, 50  # How many epochs to run
 batch_size = 32  # For reading in data
 
 J, L, order = 3, 8, 2  # Optimal values = log2(img_shape[1])-3,6-8; mopt=2
-CNNmodel = ["scatterCNN", "normalCNN"][1]  # Pick [0], [1], or nothing (meaning both)
+CNNmodel = ["scatterCNN", "normalCNN"][0]  # Pick [0], [1], or nothing (meaning both)
 optimizer_list = ['Adam', 'RMSprop', 'SGD'][:1]  # Use : to keep list type
 learning_rate = [1e-1, 1e-2, 1e-3][1:2]  # e.g. [1:2] for second element
 regu = [0, 5e-3, 5e-2, 5e-1][:1]  # or [-1:] for last element
@@ -338,9 +340,9 @@ for model_name, model_details in models.items():
                 print("Training with optimizer: ", opt, " and learning rate: ", lr, " and regularisation: ", reg)
 
                 for experiment in range(num_experiments):
-                    model.apply(reset_weights)
 
                     for subset_size in dataset_sizes:
+                        model.apply(sreset_weights)
                         config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, reg)
                         acc_key = "{}_accuracy".format(config_key)
                         loss_key = "{}_loss".format(config_key)
