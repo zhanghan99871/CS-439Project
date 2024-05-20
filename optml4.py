@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 dataset_portions = [0.0002, 0.0005]     # Portions of complete dataset for the accuracy vs dataset size
 num_experiments = 1                             # Number of experiments to run
 num_epochs_cuda, num_epochs_no_cuda = 50, 20    # How many epochs to run
-batch_size = 32                                 # For reading in data
+batch_size = 128                                # For reading in data
 
 J, L, order = 3, 8, 2                           # Optimal values = log2(img_shape[1])-3,6-8; mopt=2
 CNNmodel = ["scatterCNN", "normalCNN"][0]       # Pick [0], [1], or nothing (meaning both)
@@ -379,7 +379,7 @@ for model_name, model_details in models.items():
                             val_average_loss = val_total_loss / val_total_images
                             history[model_name][val_loss_key][experiment].append(val_average_loss)
                             accuracy = correct / val_total_images
-                            accuracies[model_name][acc_key][experiment].append(accuracy)
+                            
 
                         outputs = model(test_images_tensor)
                         _, pred_labels = torch.max(outputs, 1)
@@ -395,6 +395,7 @@ for model_name, model_details in models.items():
                         probabilities = torch.softmax(outputs, dim=1).cpu().detach().numpy()
                         auc_value = roc_auc_score(test_labels, probabilities, multi_class="ovr")
 
+                        accuracies[model_name][acc_key][experiment] = [accuracy]
                         precisions[model_name][prec_key] = [precision]
                         recalls[model_name][rec_key] = [recall]
                         f1_scores[model_name][f1_key] = [f1]
@@ -446,7 +447,7 @@ for model_name, model_details in models.items():
                         ax.set_ylabel('True label')
                         ax.set_xlabel('Predicted label')
                         ax.set_title(f'Normalized Confusion Matrix for {model_name} with {opt} optimizer, \n learning rate = {lr}, regularisation parameter = {reg},'
-                                     f'and {subset_size} samples. \ accuracy = {accuracy}')
+                                     f'and {subset_size} samples and accuracy = {accuracy}')
                         plt.savefig('./figures/{}_confusion_matrix.png'.format(config_key))
                         plt.close()
 
