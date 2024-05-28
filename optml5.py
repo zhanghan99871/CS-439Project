@@ -479,7 +479,7 @@ f1_std_per_subset = np.zeros(len(dataset_sizes))
 auc_mean_per_subset = np.zeros(len(dataset_sizes))
 auc_std_per_subset = np.zeros(len(dataset_sizes))
 # Iterate through each model in the models dictionaryplt.clf()
-plt.figure(figsize=(14, 10))  # Increase figure size
+plt.figure(figsize=(8, 6))  # Increase figure size
 
 for model_name, model_details in models.items():
     line_styles = ['-', '--', '-.', ':']  # Define line styles
@@ -545,13 +545,13 @@ for model_name, model_details in models.items():
                     plt.errorbar(dataset_sizes, f1_mean_per_subset, yerr=f1_std_per_subset, fmt=marker_style, linestyle=line_style, capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} F1 Score')
                     plt.errorbar(dataset_sizes, auc_mean_per_subset, yerr=auc_std_per_subset, fmt=marker_style, linestyle=line_style, capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} AUC')
 
-plt.title('Accuracy, Precision, Recall, F1 Score, and AUC over Different Dataset Sizes', fontsize=24)
-plt.xlabel('Dataset Size', fontsize=20)
+plt.title('Accuracy, Precision, Recall, F1 Score, and AUC over Different Dataset Sizes', fontsize=13)
+plt.xlabel('Dataset Size')
 plt.xscale('log')
-plt.ylabel('Metric Value', fontsize=20)
-plt.xticks(fontsize=20)
-plt.yticks(fontsize=20)
-plt.legend(fontsize=14)
+plt.ylabel('Metric Value')
+plt.xticks()
+plt.yticks()
+plt.legend(fontsize=9)
 plt.tight_layout()
 plt.savefig("./l2_reg/all_metrics_combined.png")
 plt.clf()
