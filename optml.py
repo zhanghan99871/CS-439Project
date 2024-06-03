@@ -13,7 +13,8 @@ import seaborn as sns
 from tqdm import tqdm
 import warnings
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] ='5'
+
+os.environ["CUDA_VISIBLE_DEVICES"] ='4'
 torch.manual_seed(10086)
 torch.cuda.manual_seed(10086)
 np.random.seed(10086)
@@ -29,20 +30,19 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 dataset_portions = [1e-3, 5e-3, 2e-2, 1e-1, 1]     # Portions of complete dataset for the accuracy vs dataset size
 num_experiments = 5                             # Number of experiments to run
-num_epochs_cuda, num_epochs_no_cuda = 50, 20    # How many epochs to run
+num_epochs_cuda, num_epochs_no_cuda = 50, 10    # How many epochs to run
 batch_size = 256                                # For reading in data
 
 J, L, order = 3, 8, 2                           # Optimal values = log2(img_shape[1])-3,6-8; mopt=2
 CNNmodel = ["scatterCNN", "normalCNN"][1]       # Pick [0], [1], or nothing (meaning both)
 optimizer_list = ['Adam', 'RMSprop', 'SGD'][0:1] # Use : to keep list type
-learning_rate = [1e-1, 1e-2, 1e-3][1:2]        # e.g. [1:2] for second element
-regu = [0, 5e-4, 5e-3, 5e-2, 5e-1]             # or [-1:] for last element
+learning_rate = [1e-1, 1e-2, 1e-3][1:2]     # e.g. [1:2] for second element
+regu = [0, 5e-4, 5e-3, 5e-2, 5e-1]           # or [-1:] for last element
 
 noise_avg, noise_std = 0, 1
 
 file = open("log.txt", 'w')
 plotsummary = False
-
 
 ###############################################
 ################ HELPER FUNCTIONS #############
@@ -83,7 +83,6 @@ def process_data(data, type="Loss"):
         else:
             data_std = np.zeros_like(data_mean)
         return data_mean, data_std
-
 
 ###############################################
 ################# LOAD DATA ###################
@@ -153,7 +152,6 @@ file.write("Regularisation parameter(s): {}\n".format(regu))
 file.write("Number of experiments: {}\n".format(num_experiments))
 file.write("Noise average: {} and noise standard deviation: {}\n".format(noise_avg, noise_std))
 file.write("\n")
-
 
 ###############################################
 ############# DEFINE MODEL ####################
@@ -236,7 +234,6 @@ if plotsummary:
         print(f"Summary for {model_name}:")
         summary(model_details["model"], input_size=(1, 28, 28), device=device)  
 
-
 ###############################################
 ############## HELPER FUNCTIONS ###############
 ###############################################
@@ -248,7 +245,6 @@ def reset_weights(m):
     '''
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
         m.reset_parameters()
-
 
 def choose_optimizer(optimizer_name, model, learning_rate):
     '''
@@ -262,7 +258,6 @@ def choose_optimizer(optimizer_name, model, learning_rate):
         return optim.SGD(model.parameters(), lr=learning_rate)
     else:
         print("Optimizer not found. Please select one of 'Adam', 'RMSprop', 'SGD'.")
-
 
 def initialize_history(history, model_name, dataset_sizes, optimizer, learning_rate, regu, num_experiments):
     if model_name not in history:
@@ -278,7 +273,6 @@ def initialize_history(history, model_name, dataset_sizes, optimizer, learning_r
                         history[model_name][loss_key] = [[] for _ in range(num_experiments)]
                     if val_loss_key not in history[model_name]:
                         history[model_name][val_loss_key] = [[] for _ in range(num_experiments)]
-
 
 def initialize_accuracies(accuracies, model_name, dataset_sizes, optimizer, learning_rate, regu, num_experiments):
     if model_name not in accuracies:
@@ -302,11 +296,9 @@ def display_examples(X, y_true, y_pred, indices, title):
         plt.axis('off')
     plt.tight_layout()
 
-
 ###############################################
 ################ FIT MODEL ####################
 ###############################################
-
 
 criterion = nn.CrossEntropyLoss()
 test_images_tensor = torch.stack(test_images).to(device)
@@ -419,8 +411,7 @@ for model_name, model_details in models.items():
                         file.write("AUC: {}\n".format(auc_value))
                         file.write("\n")
 
-                        
-                        # Plot subset-size-dependent l2_reg
+                        # Plot subset-size-dependent lr
                         config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, reg)
 
                         # Calculate ROC curve
@@ -443,7 +434,7 @@ for model_name, model_details in models.items():
                         plt.title(f'ROC Curve for {model_name} with {opt} optimizer, \n learning rate = {lr}, regularisation parameter = {reg}, and {subset_size} samples')
                         plt.legend(loc="lower right")
                         plt.text(0.2, 0.1, 'Total AUC = {:.2f}'.format(auc_value), fontsize=12, bbox=dict(facecolor='white', alpha=0.6))
-                        plt.savefig('./l2_reg/{}_roc_curve.png'.format(config_key))
+                        plt.savefig('./scatter_l2_reg/{}_roc_curve.png'.format(config_key))
                         plt.close()
                         
                         # Generate and plot the normalized confusion matrix
@@ -454,7 +445,7 @@ for model_name, model_details in models.items():
                         ax.set_xlabel('Predicted label')
                         ax.set_title(f'Normalized Confusion Matrix for {model_name} with {opt} optimizer, \n learning rate = {lr}, regularisation parameter = {reg},'
                                      f'and {subset_size} samples and accuracy = {accuracy}')
-                        plt.savefig('./l2_reg/{}_confusion_matrix.png'.format(config_key))
+                        plt.savefig('./scatter_l2_reg/{}_confusion_matrix.png'.format(config_key))
                         plt.close()
 
                         # Display examples of True and False Predictions
@@ -463,14 +454,13 @@ for model_name, model_details in models.items():
 
                         display_examples(np.array(test_images), test_labels, pred_labels, successful_indices,
                                          f"Successful Predictions for {model_name}")
-                        plt.savefig('./l2_reg/{}_successful_examples.png'.format(config_key))
+                        plt.savefig('./scatter_l2_reg/{}_successful_examples.png'.format(config_key))
                         plt.close()
 
                         display_examples(np.array(test_images), test_labels, pred_labels, unsuccessful_indices,
                                          f"Unsuccessful Predictions for {model_name}")
-                        plt.savefig('./l2_reg/{}_unsuccessful_examples.png'.format(config_key))
+                        plt.savefig('./scatter_l2_reg/{}_unsuccessful_examples.png'.format(config_key))
                         plt.close()
-
 
 ###############################################
 ############ PLOT ACCURACY AND LOSS ###########
@@ -488,78 +478,80 @@ f1_mean_per_subset = np.zeros(len(dataset_sizes))
 f1_std_per_subset = np.zeros(len(dataset_sizes))
 auc_mean_per_subset = np.zeros(len(dataset_sizes))
 auc_std_per_subset = np.zeros(len(dataset_sizes))
-# Iterate through each model in the models dictionary
-plt.clf()
+# Iterate through each model in the models dictionaryplt.clf()
+plt.figure(figsize=(8, 6))  # Increase figure size
+
 for model_name, model_details in models.items():
-    epochs = range(1, num_epochs + 1)
+    line_styles = ['-', '--', '-.', ':']  # Define line styles
+    marker_styles = ['o', 's', '^', 'd', 'p']  # Define marker styles
+    style_index = 0  # Initialize style index
 
     for opt in optimizer_list:
         for lr in learning_rate:
             for reg in regu:
+                acc_mean_per_subset = []
+                acc_std_per_subset = []
+                prec_mean_per_subset = []
+                prec_std_per_subset = []
+                rec_mean_per_subset = []
+                rec_std_per_subset = []
+                f1_mean_per_subset = []
+                f1_std_per_subset = []
+                auc_mean_per_subset = []
+                auc_std_per_subset = []
+
                 for subset_size in dataset_sizes:
                     config_key = "{}_{}_{}_{}".format(subset_size, opt, lr, reg)
-                    loss_key = "{}_loss".format(config_key)
-                    val_loss_key = "{}_val_loss".format(config_key)
                     acc_key = "{}_accuracy".format(config_key)
                     prec_key = "{}_precision".format(config_key)
                     rec_key = "{}_recall".format(config_key)
                     f1_key = "{}_f1".format(config_key)
                     auc_key = "{}_auc".format(config_key)
 
-                    if loss_key in history[model_name] and acc_key in accuracies[model_name]:
-                        loss_data = np.array(history[model_name][loss_key])
-                        val_loss_data = np.array(history[model_name][val_loss_key])
+                    if acc_key in accuracies[model_name]:
                         acc_data = np.array(accuracies[model_name][acc_key])
                         prec_data = np.array(precisions[model_name][prec_key])
                         rec_data = np.array(recalls[model_name][rec_key])
                         f1_data = np.array(f1_scores[model_name][f1_key])
                         auc_data = np.array(auc_scores[model_name][auc_key])
 
-                        if loss_data.size and val_loss_data.size and acc_data.size:
-                            loss_mean, loss_error = process_data(loss_data, "Loss")
-                            val_loss_mean, val_loss_error = process_data(val_loss_data, "Loss")
+                        if acc_data.size:
                             acc_mean, acc_error = process_data(acc_data, "Accuracy")
                             prec_mean, prec_error = process_data(prec_data, "Accuracy")
                             rec_mean, rec_error = process_data(rec_data, "Accuracy")
                             f1_mean, f1_error = process_data(f1_data, "Accuracy")
                             auc_mean, auc_error = process_data(auc_data, "Accuracy")
 
-                            plt.errorbar(epochs, loss_mean, yerr=loss_error, fmt='-', label=f'{model_name} {opt} {lr} {reg} Train Loss')
-                            plt.errorbar(epochs, val_loss_mean, yerr=val_loss_error, fmt='--', label=f'{model_name} {opt} {lr} {reg} Val Loss')
-                            plt.title(f"Training size {subset_size}")
-                            plt.xlabel('Epoch')
-                            plt.ylabel('Loss')
-                            plt.xscale('log')
-                            plt.yscale('log')
-                            plt.legend()
-                            plt.savefig("./l2_reg/{}_loss.png".format(config_key))
-                            plt.clf()
+                            acc_mean_per_subset.append(acc_mean)
+                            acc_std_per_subset.append(acc_error)
+                            prec_mean_per_subset.append(prec_mean)
+                            prec_std_per_subset.append(prec_error)
+                            rec_mean_per_subset.append(rec_mean)
+                            rec_std_per_subset.append(rec_error)
+                            f1_mean_per_subset.append(f1_mean)
+                            f1_std_per_subset.append(f1_error)
+                            auc_mean_per_subset.append(auc_mean)
+                            auc_std_per_subset.append(auc_error)
 
-                            acc_mean_per_subset[dataset_sizes.index(subset_size)] = acc_mean
-                            acc_std_per_subset[dataset_sizes.index(subset_size)] = acc_error
-                            prec_mean_per_subset[dataset_sizes.index(subset_size)] = prec_mean
-                            prec_std_per_subset[dataset_sizes.index(subset_size)] = prec_error
-                            rec_mean_per_subset[dataset_sizes.index(subset_size)] = rec_mean
-                            rec_std_per_subset[dataset_sizes.index(subset_size)] = rec_error
-                            f1_mean_per_subset[dataset_sizes.index(subset_size)] = f1_mean
-                            f1_std_per_subset[dataset_sizes.index(subset_size)] = f1_error
-                            auc_mean_per_subset[dataset_sizes.index(subset_size)] = auc_mean
-                            auc_std_per_subset[dataset_sizes.index(subset_size)] = auc_error
+                if acc_mean_per_subset:
+                    # Get current line and marker style
+                    line_style = line_styles[style_index % len(line_styles)]
+                    marker_style = marker_styles[style_index % len(marker_styles)]
+                    style_index += 1
 
-                plt.errorbar(dataset_sizes, acc_mean_per_subset, yerr=acc_std_per_subset, fmt='o-', capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} Accuracy')
-                plt.errorbar(dataset_sizes, prec_mean_per_subset, yerr=prec_std_per_subset, fmt='s-', capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} Precision')
-                plt.errorbar(dataset_sizes, rec_mean_per_subset, yerr=rec_std_per_subset, fmt='^-', capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} Recall')
-                plt.errorbar(dataset_sizes, f1_mean_per_subset, yerr=f1_std_per_subset, fmt='d-', capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} F1 Score')
-                plt.errorbar(dataset_sizes, auc_mean_per_subset, yerr=auc_std_per_subset, fmt='p-', capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} AUC')
-                plt.title(f'Accuracy, Precision, Recall, F1 Score, and AUC over Different Dataset Sizes for {model_name} with {opt} optimizer,\n learning rate = {lr}, regularisation parameter = {reg}', fontsize=10)
-                plt.xlabel('Dataset Size')
-                plt.xscale('log')
-                plt.ylabel('Metric Value')
-                plt.legend(fontsize=10)
-                plt.savefig("./l2_reg/{}_accuracy_metrics.png".format(config_key))
-                plt.clf()
 
+                    plt.errorbar(dataset_sizes, acc_mean_per_subset, yerr=np.array(acc_std_per_subset).reshape(-1), fmt=marker_style, linestyle=line_style, capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} Accuracy')
+                    plt.errorbar(dataset_sizes, prec_mean_per_subset, yerr=prec_std_per_subset, fmt=marker_style, linestyle=line_style, capsize=5, capthick=2, label=f'{model_name} {opt} {lr} {reg} Precision')
+plt.title('Trainging Accuracy and Precision over Different Dataset Sizes', fontsize=13)
+plt.xlabel('Dataset Size')
+plt.xscale('log')
+plt.ylabel('Metric Value')
+plt.xticks()
+plt.yticks()
+plt.legend(fontsize=9)
 plt.tight_layout()
+plt.savefig("./scatter_l2_reg/all_metrics_combined.png")
+plt.clf()
 
 file.close()
 
